@@ -179,10 +179,33 @@ async function handleClose(interaction, guild, user) {
 
   const channel = guild.channels.cache.get(owned.channelId);
   const role = guild.roles.cache.get(owned.roleId);
-  if (channel) await channel.delete(`Closed by owner ${user.tag}`).catch(() => null);
-  if (role) await role.delete(`Closed by owner ${user.tag}`).catch(() => null);
 
+  let channelFailed = false;
+  let roleFailed = false;
+
+  if (channel) {
+    await channel.delete(`Closed by owner ${user.tag}`).catch(() => {
+      channelFailed = true;
+    });
+  }
+  if (role) {
+    await role.delete(`Closed by owner ${user.tag}`).catch(() => {
+      roleFailed = true;
+    });
+  }
+
+  // Always clear ownership so the person isn't stuck forever, even if a
+  // permission issue below leaves something dangling for an admin to clean up.
   deleteOwnerChannel(guild.id, user.id);
+
+  if (channelFailed || roleFailed) {
+    const stuck = [channelFailed && 'the channel', roleFailed && `the role ("${owned.name}")`].filter(Boolean).join(' and ');
+    return interaction.editReply(
+      `Your ownership is cleared, but I couldn't delete ${stuck} — I likely don't have permission. ` +
+        `An admin may need to remove ${stuck} manually, or move my role above it in Server Settings → Roles.`
+    );
+  }
+
   await interaction.editReply('Your channel has been closed.');
 }
 
